@@ -1,0 +1,42 @@
+# Logs and temporary files
+*.log
+tmp/
+temp/
+.tmp/
+.env
+# Node.js specific
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# Editor and IDE specific files
+.idea/         # IntelliJ IDEA
+.vscode/       # Visual Studio Code
+.project
+.settings
+.buildpath
+*.iml
+*.ipr
+*.iws
+.DS_Store      # macOS folder metadata
+
+# OS specific files
+Thumbs.db
+ehthumbs.db
+
+# Deployment specific (adjust as needed)
+.env           # Environment variables (sensitive information)
+config/local.json # If you have local configuration files
+
+# If you build your frontend (e.g., using a bundler later)
+dist/
+build/
+public/build/
+
+# Any other files or folders you want to ignore
+# Example: Secret keys, data files, etc.
+# my-secret-key.txt
+# data.csv
