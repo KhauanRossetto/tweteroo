@@ -2,7 +2,6 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 
-import connectDB from "./db.js";
 import User from "./models/User.js";
 import Tweet from "./models/Tweet.js";
 
@@ -17,8 +16,6 @@ app.use(cors());
 app.use(express.json());
 
 /* ------------------------- Schemas/Middlewares ------------------------- */
-
-// validação de :id em params (ObjectId do Mongo tem 24 chars hex)
 const idParamsSchema = Joi.object({
   id: Joi.string().hex().length(24).required().messages({
     "string.hex": "O ID deve ser um valor hexadecimal válido.",
@@ -50,22 +47,15 @@ const validateParams = (schema) => (req, res, next) => {
 };
 
 /* ------------------------------ Rotas --------------------------------- */
-
 app.get("/", (_req, res) => {
   res.send("Tweteroo API rodando!");
 });
 
-/** POST /sign-up */
 app.post("/sign-up", validateBody(userSchema), async (req, res) => {
   const { username, avatar } = req.body;
-
   try {
     const existing = await User.findOne({ username });
-    if (existing) {
-      // conflito de recurso
-      return res.status(409).json({ message: "Este username já está em uso." });
-    }
-
+    if (existing) return res.status(409).json({ message: "Este username já está em uso." });
     await User.create({ username, avatar: avatar || "" });
     return res.status(201).json({ message: "Usuário criado com sucesso!" });
   } catch (error) {
@@ -74,18 +64,11 @@ app.post("/sign-up", validateBody(userSchema), async (req, res) => {
   }
 });
 
-/** POST /tweets */
 app.post("/tweets", validateBody(tweetSchema), async (req, res) => {
   const { username, tweet } = req.body;
-
   try {
     const user = await User.findOne({ username });
-    if (!user) {
-      return res
-        .status(401)
-        .json({ message: "Usuário não autorizado. Faça o cadastro primeiro." });
-    }
-
+    if (!user) return res.status(401).json({ message: "Usuário não autorizado. Faça o cadastro primeiro." });
     await Tweet.create({ username, tweet });
     return res.status(201).json({ message: "Tweet criado com sucesso!" });
   } catch (error) {
@@ -94,14 +77,11 @@ app.post("/tweets", validateBody(tweetSchema), async (req, res) => {
   }
 });
 
-/** GET /tweets/:username */
 app.get("/tweets/:username", async (req, res) => {
   const { username } = req.params;
-
   try {
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ message: "Usuário não encontrado." });
-
     const tweets = await Tweet.find({ username }).sort({ createdAt: -1 });
     const payload = tweets.map((t) => ({
       _id: t._id,
@@ -109,7 +89,6 @@ app.get("/tweets/:username", async (req, res) => {
       avatar: user.avatar || "",
       tweet: t.tweet
     }));
-
     return res.status(200).json(payload);
   } catch (error) {
     console.error("Erro ao buscar tweets do usuário:", error);
@@ -117,24 +96,15 @@ app.get("/tweets/:username", async (req, res) => {
   }
 });
 
-/** GET /tweets */
 app.get("/tweets", async (_req, res) => {
   try {
     const tweets = await Tweet.find().sort({ createdAt: -1 });
-
-    // agrega avatar do usuário
     const enriched = await Promise.all(
       tweets.map(async (t) => {
         const u = await User.findOne({ username: t.username });
-        return {
-          _id: t._id,
-          username: t.username,
-          avatar: u?.avatar || "",
-          tweet: t.tweet
-        };
+        return { _id: t._id, username: t.username, avatar: u?.avatar || "", tweet: t.tweet };
       })
     );
-
     return res.status(200).json(enriched);
   } catch (error) {
     console.error("Erro ao buscar tweets:", error);
@@ -142,54 +112,28 @@ app.get("/tweets", async (_req, res) => {
   }
 });
 
-/** PUT /tweets/:id  (edita APENAS o texto do tweet) */
-app.put(
-  "/tweets/:id",
-  validateParams(idParamsSchema),
-  async (req, res) => {
-    const { id } = req.params;
-    const { tweet } = req.body;
-
-    // valida só o campo tweet (não permitir trocar username aqui)
-    const { error } = Joi.object({ tweet: tweetSchema.extract("tweet") }).validate(
-      { tweet },
-      { abortEarly: false }
-    );
-    if (error) {
-      return res.status(422).json({
-        message: "Dados inválidos",
-        errors: error.details.map((d) => d.message)
-      });
-    }
-
-    try {
-      const updated = await Tweet.findByIdAndUpdate(
-        id,
-        { tweet },
-        { new: true }
-      );
-
-      if (!updated) {
-        return res.status(404).json({ message: "Tweet não encontrado" });
-      }
-
-      return res.sendStatus(204);
-    } catch (err) {
-      console.error("Erro ao editar tweet:", err);
-      return res.status(500).json({ message: "Erro ao editar tweet" });
-    }
+app.put("/tweets/:id", validateParams(idParamsSchema), async (req, res) => {
+  const { id } = req.params;
+  const { tweet } = req.body;
+  const { error } = Joi.object({ tweet: tweetSchema.extract("tweet") }).validate({ tweet }, { abortEarly: false });
+  if (error) {
+    return res.status(422).json({ message: "Dados inválidos", errors: error.details.map((d) => d.message) });
   }
-);
+  try {
+    const updated = await Tweet.findByIdAndUpdate(id, { tweet }, { new: true });
+    if (!updated) return res.status(404).json({ message: "Tweet não encontrado" });
+    return res.sendStatus(204);
+  } catch (err) {
+    console.error("Erro ao editar tweet:", err);
+    return res.status(500).json({ message: "Erro ao editar tweet" });
+  }
+});
 
-/** DELETE /tweets/:id */
 app.delete("/tweets/:id", validateParams(idParamsSchema), async (req, res) => {
   const { id } = req.params;
-
   try {
     const deleted = await Tweet.findByIdAndDelete(id);
-    if (!deleted) {
-      return res.status(404).json({ message: "Tweet não encontrado" });
-    }
+    if (!deleted) return res.status(404).json({ message: "Tweet não encontrado" });
     return res.sendStatus(204);
   } catch (error) {
     console.error("Erro ao deletar tweet:", error);
@@ -197,7 +141,6 @@ app.delete("/tweets/:id", validateParams(idParamsSchema), async (req, res) => {
   }
 });
 
-/** GET /users */
 app.get("/users", async (_req, res) => {
   try {
     const users = await User.find().sort({ createdAt: -1 });
@@ -208,18 +151,5 @@ app.get("/users", async (_req, res) => {
   }
 });
 
-/* ----------------------- Start do servidor ----------------------------- */
-
-const PORT = process.env.PORT || 5000;
-
-// inicia o servidor **após** conectar no MongoDB
-connectDB()
-  .then(() => {
-    app.listen(PORT, () =>
-      console.log(`Servidor rodando na porta ${PORT}`)
-    );
-  })
-  .catch((err) => {
-    console.error("Falha ao conectar no MongoDB:", err);
-    process.exit(1);
-  });
+/* --------- EXPORTA O APP (sem listen aqui!) --------- */
+export default app;

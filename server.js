@@ -1,11 +1,14 @@
-import dotenv from "dotenv";
+import "dotenv/config";
 import app from "./src/app.js";
-import Tweet from './models/Tweet.js';
+import connectDB from "./src/db.js";
 
+const PORT = process.env.PORT || 5001;
 
-dotenv.config();
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+  })
+  .catch((err) => {
+    console.error("Falha ao conectar no MongoDB:", err);
+    process.exit(1);
+  });
